@@ -11,6 +11,9 @@ services:
       - REACT_APP_API_URL=http://localhost:8000
     depends_on:
       - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
 
   backend:
     build:
@@ -19,45 +22,48 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://user:password@db:5432/tiktok_shorts
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       - REDIS_URL=redis://redis:6379/0
-    volumes:
-      - ./uploads:/app/uploads
-      - ./processed:/app/processed
-      - ./logs:/app/logs
     depends_on:
       - db
       - redis
+    volumes:
+      - ./backend:/app
+      - ./uploads:/app/uploads
+      - ./processed:/app/processed
+      - ./logs:/app/logs
 
-  celery_worker:
+  worker:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    command: celery -A tasks worker --loglevel=info
+    command: celery -A worker.celery worker --loglevel=info
     environment:
-      - DATABASE_URL=postgresql://user:password@db:5432/tiktok_shorts
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - backend
+      - db
+      - redis
     volumes:
+      - ./backend:/app
       - ./uploads:/app/uploads
       - ./processed:/app/processed
       - ./logs:/app/logs
-    depends_on:
-      - db
-      - redis
 
   db:
-    image: postgres:13
+    image: postgres:13-alpine
     environment:
-      - POSTGRES_USER=user
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=tiktok_shorts
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
 
   redis:
-    image: redis:6
+    image: redis:6-alpine
     ports:
       - "6379:6379"
     volumes:
