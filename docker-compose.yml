@@ -2,21 +2,18 @@ version: '3.8'
 
 services:
   frontend:
-    build: 
+    build:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
       - "3000:3000"
     environment:
-      - VITE_API_URL=http://localhost:8000
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
+      - REACT_APP_API_URL=http://localhost:8000
     depends_on:
       - backend
 
   backend:
-    build: 
+    build:
       context: ./backend
       dockerfile: Dockerfile
     ports:
@@ -25,44 +22,47 @@ services:
       - DATABASE_URL=postgresql://user:password@db:5432/tiktok_shorts
       - REDIS_URL=redis://redis:6379/0
     volumes:
-      - ./backend:/app
-      - uploaded_videos:/app/uploads
-      - processed_videos:/app/processed
+      - ./uploads:/app/uploads
+      - ./processed:/app/processed
+      - ./logs:/app/logs
+    depends_on:
+      - db
+      - redis
+
+  celery_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: celery -A tasks worker --loglevel=info
+    environment:
+      - DATABASE_URL=postgresql://user:password@db:5432/tiktok_shorts
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ./uploads:/app/uploads
+      - ./processed:/app/processed
+      - ./logs:/app/logs
     depends_on:
       - db
       - redis
 
   db:
-    image: postgres:14-alpine
+    image: postgres:13
     environment:
       - POSTGRES_USER=user
       - POSTGRES_PASSWORD=password
       - POSTGRES_DB=tiktok_shorts
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
 
   redis:
-    image: redis:alpine
+    image: redis:6
     ports:
       - "6379:6379"
-
-  celery_worker:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    command: celery -A main.celery worker --loglevel=info
     volumes:
-      - ./backend:/app
-      - uploaded_videos:/app/uploads
-      - processed_videos:/app/processed
-    environment:
-      - DATABASE_URL=postgresql://user:password@db:5432/tiktok_shorts
-      - REDIS_URL=redis://redis:6379/0
-    depends_on:
-      - redis
-      - db
+      - redis_data:/data
 
 volumes:
   postgres_data:
-  uploaded_videos:
-  processed_videos:
+  redis_data:
